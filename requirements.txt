@@ -1,9 +1,10 @@
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
 pymupdf==1.25.2
-chromadb==0.6.5
+chromadb==1.5.0
 sentence-transformers==3.4.1
 httpx==0.28.1
 pydantic==2.10.6
 python-multipart==0.0.20
 numpy==1.26.4
+rank-bm25==0.2.2

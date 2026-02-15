@@ -1,33 +1,22 @@
-.PHONY: help start stop logs status clean build index test commit
+.PHONY: help start stop logs status clean rebuild index test
 
 help:
-	@echo "GLM RAG Pipeline - Available Commands:"
+	@echo "ArXivMind - Available Commands:"
 	@echo ""
-	@echo "  make start        - Start RAG pipeline"
-	@echo "  make stop         - Stop RAG pipeline"
-	@echo "  make logs         - View logs"
-	@echo "  make status       - Show container status"
-	@echo "  make build        - Build RAG container"
-	@echo "  make index        - Index PDFs in papers/"
-	@echo "  make test         - Test RAG query"
-	@echo "  make clean        - Remove containers and volumes"
-	@echo "  make commit       - Git commit with timestamp"
-	@echo ""
-	@echo "Note: Pull GLM-4 model via Docker Desktop (Models tab)"
+	@echo "  make start     - Start everything (Ollama + backend + frontend)"
+	@echo "  make stop      - Stop all containers"
+	@echo "  make logs      - Follow container logs"
+	@echo "  make status    - Show service states"
+	@echo "  make rebuild   - Stop, rebuild (no cache), start"
+	@echo "  make clean     - Remove containers and volumes"
+	@echo "  make index     - Trigger paper indexing"
+	@echo "  make test      - Test RAG query"
 
 start:
-	@echo "Starting RAG Pipeline..."
-	@echo ""
-	@echo "⚠️  Make sure glm-4-7-flash is pulled in Docker Desktop!"
-	@echo ""
-	docker compose up -d
-	@echo ""
-	@echo "✓ RAG Pipeline started!"
-	@echo "  API: http://localhost:8000"
-	@echo "  Docs: http://localhost:8000/docs"
+	@bash scripts/start.sh
 
 stop:
-	@echo "Stopping RAG pipeline..."
+	@echo "Stopping ArXivMind..."
 	docker compose down
 
 logs:
@@ -37,24 +26,17 @@ status:
 	@echo "=== Container Status ==="
 	@docker compose ps
 	@echo ""
-	@echo "=== Git Status ==="
-	@git status -s
+	@echo "=== Ollama Model ==="
+	@ollama list 2>/dev/null | grep -E "glm4|NAME" || echo "Ollama not running or model not found"
+	@echo ""
+	@echo "=== Backend Health ==="
+	@curl -sf http://localhost:8000/health 2>/dev/null | python3 -m json.tool || echo "Backend not responding"
 
-build:
-	@echo "Building RAG pipeline container..."
+rebuild:
+	@echo "Rebuilding ArXivMind..."
+	docker compose down
 	docker compose build --no-cache
-
-index:
-	@echo "Indexing papers in papers/ directory..."
-	docker compose exec rag-pipeline python -c "from app.rag import index_papers; index_papers()"
-	@echo "✓ Papers indexed!"
-
-test:
-	@echo "Testing RAG query..."
-	@curl -X POST http://localhost:8000/query \
-		-H "Content-Type: application/json" \
-		-d '{"question": "What are the main findings?", "top_k": 3}' \
-		2>/dev/null | python3 -m json.tool
+	@bash scripts/start.sh
 
 clean:
 	@echo "⚠️  This will remove containers and volumes!"
@@ -66,7 +48,13 @@ clean:
 		echo "Cancelled."; \
 	fi
 
-commit:
-	@read -p "Commit message: " msg; \
-	git add .; \
-	git commit -m "$$msg [$$(date +'%Y-%m-%d %H:%M')]"
+index:
+	@echo "Triggering paper indexing..."
+	@curl -sf -X POST http://localhost:8000/index | python3 -m json.tool
+
+test:
+	@echo "Testing RAG query..."
+	@curl -sf -X POST http://localhost:8000/query \
+		-H "Content-Type: application/json" \
+		-d '{"question": "What are the main findings?", "n_results": 3}' \
+		| python3 -m json.tool
